@@ -72,14 +72,19 @@ const wsUrl = () => PUBLIC_BASE_URL.replace(/^http/, "ws") + "/stream";
 
 // TwiML that connects the call's audio to our WebSocket (bidirectional).
 // `channel` selects which business persona the agent runs (clinic / tailor).
-function streamTwiml(direction, channelId) {
+const xmlEsc = (s) => (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+function streamTwiml(direction, channelId, callerName = "") {
   const ch = channels[channelId] ? channelId : DEFAULT_CHANNEL;
+  const nameParam = callerName
+    ? `\n      <Parameter name="callerName" value="${xmlEsc(callerName)}" />`
+    : "";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
     <Stream url="${wsUrl()}">
       <Parameter name="direction" value="${direction}" />
-      <Parameter name="channel" value="${ch}" />
+      <Parameter name="channel" value="${ch}" />${nameParam}
     </Stream>
   </Connect>
 </Response>`;
@@ -253,21 +258,23 @@ app.post("/voice/inbound", (req, res) => {
 
 // Outbound: TwiML served to a call we placed via the API.
 app.post("/voice/outbound", (req, res) => {
-  res.type("text/xml").send(streamTwiml("outbound", req.query.channel));
+  res.type("text/xml").send(streamTwiml("outbound", req.query.channel, req.query.name));
 });
 
-// Trigger an outbound call: POST { to: "+91XXXXXXXXXX", channel?: "clinic"|"tailor" }
+// Trigger an outbound call: POST { to, channel?, name? }
 app.post("/call", async (req, res) => {
   const to = req.body.to;
   if (!to) return res.status(400).json({ error: "missing 'to'" });
   const channel = channels[req.body.channel] ? req.body.channel : DEFAULT_CHANNEL;
+  const callerName = (req.body.name || "").trim();
   try {
+    const nameQs = callerName ? `&name=${encodeURIComponent(callerName)}` : "";
     const call = await tw.calls.create({
       to,
       from: process.env.TWILIO_PHONE_NUMBER,
-      url: `${PUBLIC_BASE_URL}/voice/outbound?channel=${encodeURIComponent(channel)}`,
+      url: `${PUBLIC_BASE_URL}/voice/outbound?channel=${encodeURIComponent(channel)}${nameQs}`,
     });
-    logEvent("dial", call.sid, { direction: "outbound", to, status: call.status, channel });
+    logEvent("dial", call.sid, { direction: "outbound", to, status: call.status, channel, callerName: callerName || undefined });
     res.json({ sid: call.sid, status: call.status, channel });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -397,8 +404,9 @@ wss.on("connection", (ws) => {
       session.callSid = msg.start.callSid;
       session.direction = msg.start.customParameters?.direction || "inbound";
       session.channel = msg.start.customParameters?.channel || DEFAULT_CHANNEL;
+      session.callerName = (msg.start.customParameters?.callerName || "").trim();
       const ch = getChannel(session.channel);
-      session.convo = new Conversation(session.channel);
+      session.convo = new Conversation(session.channel, session.callerName);
       console.log(`call start ${session.callSid} (${session.direction}, ${ch.id})`);
       activeCalls.set(session.callSid, { callSid: session.callSid, direction: session.direction, channel: ch.id, startedAt: new Date().toISOString(), turns: 0, lastText: "" });
       logEvent("start", session.callSid, { direction: session.direction, channel: ch.id });

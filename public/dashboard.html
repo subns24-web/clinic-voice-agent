@@ -148,6 +148,7 @@
     <div class="card">
       <div class="callbar">
         <select id="channelSel" title="channel"></select>
+        <input id="callerName" placeholder="Customer name" style="min-width:150px" data-i18n-ph="callerNamePh" />
         <input id="toNum" placeholder="+91 number to call" value="+91" />
         <button class="primary" id="callBtn" onclick="placeCall()" data-i18n="callNow">📲 Call now</button>
         <span class="mut" id="callMsg"></span>
@@ -225,7 +226,7 @@ const I18N = {
     title:"📞 Clinic Voice Agent", refresh:"auto-refresh 5s", refreshNow:"refresh now",
     agent:"Agent", liveCalls:"Live calls", noActive:"no calls in progress",
     bookings:"Bookings", integrations:"Integrations", sarvam:"Sarvam (speech)", openai:"OpenAI (brain)",
-    placeCall:"Place an outbound call", callNow:"📲 Call now", verifiedNums:"Verified test numbers:",
+    placeCall:"Place an outbound call", callNow:"📲 Call now", callerNamePh:"Customer name", verifiedNums:"Verified test numbers:",
     liveActivity:"Live activity", noActivity:"No activity yet. Place a call to see the live transcript here.",
     bookingsLeads:"Bookings & leads", downloadCsv:"download CSV",
     time:"Time", type:"Type", patient:"Patient", phone:"Phone", reason:"Reason", slot:"Slot", dir:"Dir",
@@ -261,7 +262,7 @@ const I18N = {
     title:"📞 క్లినిక్ వాయిస్ ఏజెంట్", refresh:"ప్రతి 5 సె. రిఫ్రెష్", refreshNow:"ఇప్పుడే రిఫ్రెష్",
     agent:"ఏజెంట్", liveCalls:"ప్రత్యక్ష కాల్స్", noActive:"ప్రస్తుతం కాల్స్ లేవు",
     bookings:"బుకింగ్‌లు", integrations:"ఇంటిగ్రేషన్‌లు", sarvam:"సర్వం (స్పీచ్)", openai:"ఓపెన్ఏఐ (బ్రెయిన్)",
-    placeCall:"అవుట్‌బౌండ్ కాల్ చేయండి", callNow:"📲 ఇప్పుడే కాల్ చేయండి", verifiedNums:"ధృవీకరించిన పరీక్ష నంబర్లు:",
+    placeCall:"అవుట్‌బౌండ్ కాల్ చేయండి", callNow:"📲 ఇప్పుడే కాల్ చేయండి", callerNamePh:"కస్టమర్ పేరు", verifiedNums:"ధృవీకరించిన పరీక్ష నంబర్లు:",
     liveActivity:"ప్రత్యక్ష కార్యకలాపం", noActivity:"ఇంకా కార్యకలాపం లేదు. ప్రత్యక్ష ట్రాన్స్‌క్రిప్ట్ చూడటానికి కాల్ చేయండి.",
     bookingsLeads:"బుకింగ్‌లు & లీడ్స్", downloadCsv:"CSV డౌన్‌లోడ్",
     time:"సమయం", type:"రకం", patient:"రోగి", phone:"ఫోన్", reason:"కారణం", slot:"స్లాట్", dir:"దిశ",
@@ -302,6 +303,7 @@ function setLang(l){
   $("lang_en").classList.toggle("on", l==="en");
   $("lang_te").classList.toggle("on", l==="te");
   document.querySelectorAll("[data-i18n]").forEach(el=>{ el.textContent = t(el.getAttribute("data-i18n")); });
+  document.querySelectorAll("[data-i18n-ph]").forEach(el=>{ el.placeholder = t(el.getAttribute("data-i18n-ph")); });
   refreshAll();
 }
 function fmtTime(iso){ if(!iso) return "—"; const d=new Date(iso);
@@ -399,9 +401,10 @@ async function placeCall(){
   const to=$("toNum").value.trim();
   if(!to || to.length<8){ toast(t("enterValid")); return; }
   const channel=$("channelSel").value || undefined;
+  const name=($("callerName").value||"").trim()||undefined;
   $("callBtn").disabled=true; $("callMsg").textContent=t("dialing");
   try {
-    const r = await fetch("/call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({to, channel})});
+    const r = await fetch("/call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({to, channel, name})});
     const j = await r.json();
     if(!r.ok) throw new Error(j.error||"call failed");
     $("callMsg").textContent=t("callPlaced", j.status);
