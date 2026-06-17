@@ -4,7 +4,8 @@
 // Channel.type drives the playbook the brain uses:
 //   "clinic" -> book/reschedule appointments, FAQs, leads, urgent transfer
 //   "tailor" -> confirm stitching order, schedule garment pickup, FAQs, leads
-// Both types close the call with a thank-you + a Google review ask + prep/action points.
+//   "coach"  -> discover prospect's business, close ₹4999 3-day workshop, collect payment
+// All types close with thank-you + Google review ask.
 
 export const channels = {
   // ---------------------------------------------------------------------------
@@ -94,6 +95,54 @@ export const channels = {
     prepPoints: [
       "Please bring your bill/token when you come to collect.",
       "Check the fitting at the shop before you leave so we can adjust on the spot.",
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  coach: {
+    id: "coach",
+    type: "coach",
+    name: "SN Trinetra Business Coaching",
+    city: "Vijayawada, Andhra Pradesh",
+    greetingTe: "నమస్కారం! SN Trinetra బిజినెస్ కోచింగ్‌కి స్వాగతం. నేను మీకు ఎలా సహాయం చేయగలను?",
+    greetingEn: "Namaskaram! Welcome to SN Trinetra Business Coaching. How can I help you today?",
+
+    hours: "Monday to Saturday, 10:00 AM to 7:00 PM.",
+    address: "Vijayawada, Andhra Pradesh. Online sessions also available.",
+    location: "Vijayawada, Andhra Pradesh",
+
+    services: [
+      { name: "3-Day Business Transformation Workshop", fee: "₹4999 (limited seats)" },
+      { name: "One-on-One Business Mentoring", fee: "On request" },
+      { name: "Group Mastermind Sessions", fee: "On request" },
+    ],
+
+    workshop: {
+      name: "3-Day Business Transformation Workshop",
+      fee: 4999,
+      days: [
+        "Day 1 — Business Foundations: vision, goals, ideal customer, and entrepreneur mindset.",
+        "Day 2 — Sales & Growth: customer acquisition, pricing, digital marketing, and lead generation.",
+        "Day 3 — Systems & Scale: finance basics, team building, and your 90-day action plan.",
+      ],
+      seats: "Only 20 seats per batch — filling fast.",
+      nextBatch: process.env.COACH_NEXT_BATCH || "this Saturday",
+      outcomes: [
+        "A clear, written business plan you build during the workshop.",
+        "Scripts to close your first (or next) 10 customers.",
+        "A 90-day action plan with weekly milestones.",
+      ],
+    },
+
+    // Override via env: COACH_UPI and COACH_PAYMENT_LINK
+    paymentUpi:  process.env.COACH_UPI          || "sntrinetra@upi",
+    paymentLink: process.env.COACH_PAYMENT_LINK || "",
+
+    googleReviewName: "SN Trinetra Business Coaching",
+    prepPoints: [
+      "Bring a notebook — you will build your business plan live during the 3 days.",
+      "Come with your biggest business challenge — we will solve it together in the room.",
+      "Share the workshop with one fellow entrepreneur — group energy multiplies results.",
     ],
   },
 };

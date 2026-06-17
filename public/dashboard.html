@@ -40,6 +40,7 @@
   .pill.pickup { background:rgba(46,204,113,.16); color:#5fe39b; }
   .pill.lead { background:rgba(79,140,255,.16); color:#8db4ff; }
   .pill.review { background:rgba(241,178,74,.16); color:#f1c97a; }
+  .pill.enroll { background:rgba(46,204,113,.22); color:#2ecc71; border:1px solid rgba(46,204,113,.3); }
   .pill.inbound { background:rgba(241,178,74,.16); color:#f1c97a; }
   .pill.outbound { background:rgba(160,120,255,.16); color:#c0a8ff; }
   .empty { color:var(--mut); padding:18px; text-align:center; }
@@ -384,6 +385,7 @@ async function loadFeed(){
       else if(e.type==="stop"){ body=esc(t("evStop")); }
       else if(e.type==="dial"){ body=esc(t("evDial", e.to, e.channel)); }
       else if(e.type==="booking"){ body=esc(t("evBooked", e.patientName||'', e.slot||'')); }
+      else if(e.type==="enroll"){ body=esc("🎓 enrolled "+( e.patientName||'')+" — "+(e.slot||'workshop')); }
       else if(e.type==="lead"){ body=esc(t("evLead", e.patientName||'', e.phone||'')); }
       return `<div class="ev"><span class="t">${fmtTime(e.ts)}</span><span class="who ${label}">${label}</span><span>${body}</span></div>`;
     }).join("");

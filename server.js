@@ -363,6 +363,11 @@ wss.on("connection", (ws) => {
       saveLead({ callSid: session.callSid, direction: session.direction, type: "review",
         patientName: action.patientName, phone: action.phone, reason: "agreed to leave a Google review", slot: "" });
       logEvent("review", session.callSid, { patientName: action.patientName, phone: action.phone });
+    } else if (action.type === "enroll") {
+      // Business coaching workshop enrollment — save and log immediately.
+      saveLead({ callSid: session.callSid, direction: session.direction, type: "enroll",
+        patientName: action.patientName, phone: action.phone, reason: action.reason, slot: action.slot || "Workshop" });
+      logEvent("enroll", session.callSid, { patientName: action.patientName, phone: action.phone, slot: action.slot });
     } else if (action.type === "lead") {
       saveLead({ callSid: session.callSid, direction: session.direction, type: "lead",
         patientName: action.patientName, phone: action.phone, reason: action.reason, slot: "" });
