@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Clinic Voice Agent — Dashboard</title>
+<style>
+  :root {
+    --bg:#0e1117; --card:#171b22; --card2:#1d222b; --line:#272d38;
+    --txt:#e6e9ef; --mut:#8b95a7; --accent:#4f8cff; --green:#2ecc71;
+    --red:#ff5f57; --amber:#f1b24a; --pill:#222936;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  header { padding:18px 24px; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+  header h1 { font-size:17px; margin:0; font-weight:600; }
+  header .sub { color:var(--mut); font-size:12.5px; }
+  .wrap { padding:20px 24px; max-width:1180px; margin:0 auto; }
+  .grid { display:grid; gap:16px; }
+  .cards { grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .card h3 { margin:0 0 10px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); font-weight:600; }
+  .stat { font-size:22px; font-weight:600; }
+  .row { display:flex; align-items:center; gap:8px; margin:6px 0; }
+  .dot { width:9px; height:9px; border-radius:50%; flex:none; }
+  .ok { background:var(--green); } .bad { background:var(--red); } .warn { background:var(--amber); }
+  .mut { color:var(--mut); }
+  .mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; }
+  .section { margin-top:22px; }
+  .section h2 { font-size:14px; margin:0 0 12px; display:flex; align-items:center; gap:10px; }
+  .badge { background:var(--pill); color:var(--mut); border-radius:20px; padding:2px 9px; font-size:11.5px; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  th,td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); font-size:13px; }
+  th { color:var(--mut); font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:.03em; background:var(--card2); }
+  tr:last-child td { border-bottom:none; }
+  .pill { display:inline-block; padding:2px 9px; border-radius:20px; font-size:11.5px; font-weight:600; }
+  .pill.booking { background:rgba(46,204,113,.16); color:#5fe39b; }
+  .pill.pickup { background:rgba(46,204,113,.16); color:#5fe39b; }
+  .pill.lead { background:rgba(79,140,255,.16); color:#8db4ff; }
+  .pill.review { background:rgba(241,178,74,.16); color:#f1c97a; }
+  .pill.inbound { background:rgba(241,178,74,.16); color:#f1c97a; }
+  .pill.outbound { background:rgba(160,120,255,.16); color:#c0a8ff; }
+  .empty { color:var(--mut); padding:18px; text-align:center; }
+  button { font:inherit; cursor:pointer; border-radius:9px; border:1px solid var(--line);
+    background:var(--card2); color:var(--txt); padding:9px 14px; }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  button.primary:hover { filter:brightness(1.08); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  input { font:inherit; background:var(--bg); border:1px solid var(--line); color:var(--txt);
+    border-radius:9px; padding:9px 12px; min-width:200px; }
+  input:focus { outline:none; border-color:var(--accent); }
+  select { font:inherit; background:var(--bg); border:1px solid var(--line); color:var(--txt);
+    border-radius:9px; padding:9px 12px; }
+  select:focus { outline:none; border-color:var(--accent); }
+  .chanpill { display:inline-block; padding:1px 8px; border-radius:20px; font-size:11px; font-weight:600;
+    background:rgba(160,120,255,.16); color:#c0a8ff; margin-left:6px; }
+  .callbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .quick { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .quick button { font-size:12.5px; padding:6px 11px; }
+  .toast { position:fixed; right:20px; bottom:20px; background:var(--card2); border:1px solid var(--line);
+    padding:12px 16px; border-radius:10px; box-shadow:0 8px 30px rgba(0,0,0,.4); opacity:0;
+    transform:translateY(8px); transition:.25s; max-width:340px; }
+  .toast.show { opacity:1; transform:translateY(0); }
+  .feed { background:var(--card); border:1px solid var(--line); border-radius:12px; max-height:340px; overflow:auto; }
+  .feed .ev { display:flex; gap:10px; padding:8px 12px; border-bottom:1px solid var(--line); font-size:12.5px; }
+  .feed .ev:last-child { border-bottom:none; }
+  .feed .t { color:var(--mut); flex:none; width:62px; font-family:ui-monospace,monospace; }
+  .feed .who { flex:none; width:60px; font-weight:600; }
+  .who.caller { color:#f1c97a; } .who.agent { color:#8db4ff; }
+  .who.start,.who.stop,.who.dial { color:var(--mut); }
+  .who.booking { color:#5fe39b; } .who.lead { color:#8db4ff; }
+  .refresh { font-size:12px; color:var(--mut); }
+  a { color:var(--accent); text-decoration:none; }
+  .langtog { display:flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .langtog button { border:none; border-radius:0; background:var(--card2); padding:6px 12px; font-size:12.5px; color:var(--mut); }
+  .langtog button.on { background:var(--accent); color:#fff; font-weight:600; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1><span data-i18n="title">📞 Clinic Voice Agent</span> <span id="clinicName" class="sub"></span></h1>
+    <div class="sub" id="subline">Telugu + English · realtime phone agent</div>
+  </div>
+  <div style="display:flex; align-items:center; gap:14px;">
+    <div class="langtog">
+      <button id="lang_en" onclick="setLang('en')">EN</button>
+      <button id="lang_te" onclick="setLang('te')">తెలుగు</button>
+    </div>
+    <div class="refresh"><span data-i18n="refresh">auto-refresh 5s</span> · <a href="#" onclick="refreshAll();return false;" data-i18n="refreshNow">refresh now</a></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- Status cards -->
+  <div class="grid cards">
+    <div class="card">
+      <h3 data-i18n="agent">Agent</h3>
+      <div class="row"><span class="dot ok" id="agentDot"></span><span class="stat" style="font-size:16px" id="agentState">Online</span></div>
+      <div class="mut" id="uptime">uptime —</div>
+    </div>
+    <div class="card">
+      <h3 data-i18n="liveCalls">Live calls</h3>
+      <div class="stat" id="activeCount">0</div>
+      <div class="mut" id="activeHint" data-i18n="noActive">no calls in progress</div>
+    </div>
+    <div class="card">
+      <h3 data-i18n="bookings">Bookings</h3>
+      <div class="stat" id="bookCount">0</div>
+      <div class="mut" id="leadCount">0 leads captured</div>
+    </div>
+    <div class="card">
+      <h3 data-i18n="integrations">Integrations</h3>
+      <div class="row"><span class="dot" id="d_twilio"></span><span class="mut">Twilio</span></div>
+      <div class="row"><span class="dot" id="d_sarvam"></span><span class="mut" data-i18n="sarvam">Sarvam (speech)</span></div>
+      <div class="row"><span class="dot" id="d_openai"></span><span class="mut" data-i18n="openai">OpenAI (brain)</span></div>
+    </div>
+  </div>
+
+  <!-- Place a call -->
+  <div class="section">
+    <h2><span data-i18n="placeCall">Place an outbound call</span> <span class="badge" id="fromNum">—</span></h2>
+    <div class="card">
+      <div class="callbar">
+        <select id="channelSel" title="channel"></select>
+        <input id="toNum" placeholder="+91 number to call" value="+91" />
+        <button class="primary" id="callBtn" onclick="placeCall()" data-i18n="callNow">📲 Call now</button>
+        <span class="mut" id="callMsg"></span>
+      </div>
+      <div class="quick">
+        <span class="mut" style="align-self:center" data-i18n="verifiedNums">Verified test numbers:</span>
+        <button onclick="quick('+919963646301')">+91 99636 46301</button>
+        <button onclick="quick('+916304509465')">+91 63045 09465</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live feed + active calls -->
+  <div class="section">
+    <h2><span data-i18n="liveActivity">Live activity</span> <span class="badge" id="feedCount">0</span></h2>
+    <div class="feed" id="feed"><div class="empty" data-i18n="noActivity">No activity yet. Place a call to see the live transcript here.</div></div>
+  </div>
+
+  <!-- Leads / bookings -->
+  <div class="section">
+    <h2><span data-i18n="bookingsLeads">Bookings &amp; leads</span> <span class="badge" id="leadsBadge">0</span> · <a href="/leads.csv" download data-i18n="downloadCsv">download CSV</a></h2>
+    <table>
+      <thead><tr><th data-i18n="time">Time</th><th data-i18n="type">Type</th><th data-i18n="patient">Patient</th><th data-i18n="phone">Phone</th><th data-i18n="reason">Reason</th><th data-i18n="slot">Slot</th><th data-i18n="dir">Dir</th></tr></thead>
+      <tbody id="leadsBody"><tr><td colspan="7" class="empty" data-i18n="noLeads">No bookings or leads yet.</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- Recent Twilio calls -->
+  <div class="section">
+    <h2><span data-i18n="recentCalls">Recent calls (Twilio)</span> <span class="badge" id="callsBadge">0</span></h2>
+    <table>
+      <thead><tr><th data-i18n="time">Time</th><th data-i18n="direction">Direction</th><th data-i18n="from">From</th><th data-i18n="to">To</th><th data-i18n="status">Status</th><th data-i18n="dur">Dur</th><th data-i18n="cost">Cost</th></tr></thead>
+      <tbody id="callsBody"><tr><td colspan="7" class="empty" data-i18n="noCalls">No calls yet.</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+// ---- i18n (English + Telugu) ----
+const I18N = {
+  en: {
+    title:"📞 Clinic Voice Agent", refresh:"auto-refresh 5s", refreshNow:"refresh now",
+    agent:"Agent", liveCalls:"Live calls", noActive:"no calls in progress",
+    bookings:"Bookings", integrations:"Integrations", sarvam:"Sarvam (speech)", openai:"OpenAI (brain)",
+    placeCall:"Place an outbound call", callNow:"📲 Call now", verifiedNums:"Verified test numbers:",
+    liveActivity:"Live activity", noActivity:"No activity yet. Place a call to see the live transcript here.",
+    bookingsLeads:"Bookings & leads", downloadCsv:"download CSV",
+    time:"Time", type:"Type", patient:"Patient", phone:"Phone", reason:"Reason", slot:"Slot", dir:"Dir",
+    noLeads:"No bookings or leads yet.", recentCalls:"Recent calls (Twilio)",
+    direction:"Direction", from:"From", to:"To", status:"Status", dur:"Dur", cost:"Cost", noCalls:"No calls yet.",
+    online:"Online", onCall:"On a call", serverDown:"Server down",
+    leadsCaptured:(n)=>n+" leads captured", inProgress:(s)=>s+" in progress",
+    uptime:(h,m)=>"uptime "+h+"h "+m+"m", enterValid:"Enter a valid number",
+    dialing:"dialing…", callPlaced:(s)=>"call placed ✓ ("+s+")", calling:(t,s)=>"Calling "+t+" — "+s,
+    callFailed:(e)=>"Call failed: "+e, noNumber:"no number",
+    evStart:(d,c)=>"call started ("+d+(c?" · "+c:"")+")", evStop:"call ended", evDial:(t,c)=>"dialing "+t+(c?" · "+c:""),
+    evBooked:(n,s)=>"✅ booked "+n+" — "+s, evLead:(n,p)=>"📋 lead "+n+" "+p, noActivityFeed:"No activity yet. Place a call to see the live transcript here.",
+    cantLoadCalls:(e)=>"Could not load Twilio calls ("+e+")"
+  },
+  te: {
+    title:"📞 క్లినిక్ వాయిస్ ఏజెంట్", refresh:"ప్రతి 5 సె. రిఫ్రెష్", refreshNow:"ఇప్పుడే రిఫ్రెష్",
+    agent:"ఏజెంట్", liveCalls:"ప్రత్యక్ష కాల్స్", noActive:"ప్రస్తుతం కాల్స్ లేవు",
+    bookings:"బుకింగ్‌లు", integrations:"ఇంటిగ్రేషన్‌లు", sarvam:"సర్వం (స్పీచ్)", openai:"ఓపెన్ఏఐ (బ్రెయిన్)",
+    placeCall:"అవుట్‌బౌండ్ కాల్ చేయండి", callNow:"📲 ఇప్పుడే కాల్ చేయండి", verifiedNums:"ధృవీకరించిన పరీక్ష నంబర్లు:",
+    liveActivity:"ప్రత్యక్ష కార్యకలాపం", noActivity:"ఇంకా కార్యకలాపం లేదు. ప్రత్యక్ష ట్రాన్స్‌క్రిప్ట్ చూడటానికి కాల్ చేయండి.",
+    bookingsLeads:"బుకింగ్‌లు & లీడ్స్", downloadCsv:"CSV డౌన్‌లోడ్",
+    time:"సమయం", type:"రకం", patient:"రోగి", phone:"ఫోన్", reason:"కారణం", slot:"స్లాట్", dir:"దిశ",
+    noLeads:"ఇంకా బుకింగ్‌లు లేదా లీడ్స్ లేవు.", recentCalls:"ఇటీవలి కాల్స్ (ట్విలియో)",
+    direction:"దిశ", from:"నుండి", to:"కు", status:"స్థితి", dur:"వ్యవధి", cost:"ఖర్చు", noCalls:"ఇంకా కాల్స్ లేవు.",
+    online:"ఆన్‌లైన్", onCall:"కాల్‌లో ఉంది", serverDown:"సర్వర్ డౌన్",
+    leadsCaptured:(n)=>n+" లీడ్స్ సేకరించబడ్డాయి", inProgress:(s)=>s+" జరుగుతోంది",
+    uptime:(h,m)=>"అప్‌టైమ్ "+h+"గం "+m+"ని", enterValid:"సరైన నంబర్ ఇవ్వండి",
+    dialing:"డయల్ చేస్తోంది…", callPlaced:(s)=>"కాల్ చేయబడింది ✓ ("+s+")", calling:(t,s)=>t+" కు కాల్ చేస్తోంది — "+s,
+    callFailed:(e)=>"కాల్ విఫలమైంది: "+e, noNumber:"నంబర్ లేదు",
+    evStart:(d,c)=>"కాల్ ప్రారంభమైంది ("+d+(c?" · "+c:"")+")", evStop:"కాల్ ముగిసింది", evDial:(t,c)=>t+" కు డయల్ చేస్తోంది"+(c?" · "+c:""),
+    evBooked:(n,s)=>"✅ బుక్ చేయబడింది "+n+" — "+s, evLead:(n,p)=>"📋 లీడ్ "+n+" "+p, noActivityFeed:"ఇంకా కార్యకలాపం లేదు. ప్రత్యక్ష ట్రాన్స్‌క్రిప్ట్ చూడటానికి కాల్ చేయండి.",
+    cantLoadCalls:(e)=>"ట్విలియో కాల్స్ లోడ్ చేయలేకపోయింది ("+e+")"
+  }
+};
+let LANG = localStorage.getItem("cva_lang") || "en";
+const t = (k,...a) => { const v = (I18N[LANG]||I18N.en)[k]; return typeof v==="function" ? v(...a) : (v ?? k); };
+function setLang(l){
+  LANG = l; localStorage.setItem("cva_lang", l);
+  document.documentElement.lang = l;
+  $("lang_en").classList.toggle("on", l==="en");
+  $("lang_te").classList.toggle("on", l==="te");
+  document.querySelectorAll("[data-i18n]").forEach(el=>{ el.textContent = t(el.getAttribute("data-i18n")); });
+  refreshAll();
+}
+function fmtTime(iso){ if(!iso) return "—"; const d=new Date(iso);
+  return d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"}); }
+function fmtDur(s){ if(!s) return "—"; s=+s; return Math.floor(s/60)+"m "+(s%60)+"s"; }
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),3500); }
+function dot(el, on){ el.className = "dot " + (on ? "ok" : "bad"); }
+
+async function getJSON(u){ const r=await fetch(u); if(!r.ok) throw new Error((await r.json()).error||r.status); return r.json(); }
+
+async function loadStatus(){
+  try {
+    const s = await getJSON("/api/status");
+    $("clinicName").textContent = s.clinic?.name ? "· " + s.clinic.name : "";
+    $("subline").textContent = "Telugu + English · brain: " + (s.providers?.brain||"openai") +
+      (s.publicUrl ? " · " + s.publicUrl.replace(/^https?:\/\//,"") : "");
+    const up = s.uptimeSec||0; $("uptime").textContent = t("uptime", Math.floor(up/3600), Math.floor((up%3600)/60));
+    dot($("d_twilio"), s.providers?.twilio);
+    dot($("d_sarvam"), s.providers?.sarvam);
+    dot($("d_openai"), s.providers?.openai);
+    $("fromNum").textContent = s.twilioNumber ? "from " + s.twilioNumber : t("noNumber");
+    // Populate channel selector once.
+    const sel = $("channelSel");
+    if (sel && !sel.dataset.filled && Array.isArray(s.channels)) {
+      sel.innerHTML = s.channels.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("");
+      if (s.defaultChannel) sel.value = s.defaultChannel;
+      sel.dataset.filled = "1";
+    }
+    const ac = s.activeCalls||[];
+    $("activeCount").textContent = ac.length;
+    $("activeHint").textContent = ac.length ? t("inProgress", ac.map(c=>c.direction).join(", ")) : t("noActive");
+    $("agentState").textContent = ac.length ? t("onCall") : t("online");
+  } catch(e){ $("agentState").textContent=t("serverDown"); dot($("agentDot"),false); }
+}
+
+async function loadLeads(){
+  try {
+    const rows = await getJSON("/api/leads");
+    $("leadsBadge").textContent = rows.length;
+    const bookings = rows.filter(r=>r.type==="booking").length;
+    $("bookCount").textContent = bookings;
+    $("leadCount").textContent = t("leadsCaptured", rows.length-bookings);
+    const b=$("leadsBody");
+    if(!rows.length){ b.innerHTML='<tr><td colspan="7" class="empty">'+t("noLeads")+'</td></tr>'; return; }
+    b.innerHTML = rows.map(r=>`<tr>
+      <td class="mono">${fmtTime(r.timestamp)}</td>
+      <td><span class="pill ${esc(r.type||'lead')}">${esc(r.type)}</span></td>
+      <td>${esc(r.patientName)}</td><td class="mono">${esc(r.phone)}</td>
+      <td>${esc(r.reason)}</td><td>${esc(r.slot)}</td>
+      <td><span class="pill ${r.direction}">${esc(r.direction)}</span></td></tr>`).join("");
+  } catch(e){}
+}
+
+async function loadCalls(){
+  try {
+    const rows = await getJSON("/api/calls");
+    $("callsBadge").textContent = rows.length;
+    const b=$("callsBody");
+    if(!rows.length){ b.innerHTML='<tr><td colspan="7" class="empty">'+t("noCalls")+'</td></tr>'; return; }
+    b.innerHTML = rows.map(c=>`<tr>
+      <td class="mono">${fmtTime(c.startTime)}</td>
+      <td><span class="pill ${c.direction&&c.direction.includes('out')?'outbound':'inbound'}">${esc(c.direction)}</span></td>
+      <td class="mono">${esc(c.from)}</td><td class="mono">${esc(c.to)}</td>
+      <td>${esc(c.status)}</td><td>${fmtDur(c.duration)}</td>
+      <td>${c.price?('$'+Math.abs(+c.price).toFixed(3)):'—'}</td></tr>`).join("");
+  } catch(e){ $("callsBody").innerHTML='<tr><td colspan="7" class="empty">'+esc(t("cantLoadCalls", e.message))+'</td></tr>'; }
+}
+
+async function loadFeed(){
+  try {
+    const evs = await getJSON("/api/events");
+    $("feedCount").textContent = evs.length;
+    const f=$("feed");
+    if(!evs.length){ f.innerHTML='<div class="empty">'+t("noActivityFeed")+'</div>'; return; }
+    f.innerHTML = evs.map(e=>{
+      let label=e.type, body="";
+      if(e.type==="caller"){ label="caller"; body=esc(e.text); }
+      else if(e.type==="agent"){ label="agent"; body=esc(e.text)+(e.action&&e.action!=="none"?' <span class="badge">'+e.action+'</span>':''); }
+      else if(e.type==="start"){ body=esc(t("evStart", e.direction, e.channel)); }
+      else if(e.type==="stop"){ body=esc(t("evStop")); }
+      else if(e.type==="dial"){ body=esc(t("evDial", e.to, e.channel)); }
+      else if(e.type==="booking"){ body=esc(t("evBooked", e.patientName||'', e.slot||'')); }
+      else if(e.type==="lead"){ body=esc(t("evLead", e.patientName||'', e.phone||'')); }
+      return `<div class="ev"><span class="t">${fmtTime(e.ts)}</span><span class="who ${label}">${label}</span><span>${body}</span></div>`;
+    }).join("");
+  } catch(e){}
+}
+
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function quick(n){ $("toNum").value=n; }
+async function placeCall(){
+  const to=$("toNum").value.trim();
+  if(!to || to.length<8){ toast(t("enterValid")); return; }
+  const channel=$("channelSel").value || undefined;
+  $("callBtn").disabled=true; $("callMsg").textContent=t("dialing");
+  try {
+    const r = await fetch("/call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({to, channel})});
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error||"call failed");
+    $("callMsg").textContent=t("callPlaced", j.status);
+    toast(t("calling", to, j.status));
+    setTimeout(refreshAll, 1500);
+  } catch(e){ $("callMsg").textContent=""; toast(t("callFailed", e.message)); }
+  finally { $("callBtn").disabled=false; }
+}
+
+function refreshAll(){ loadStatus(); loadLeads(); loadCalls(); loadFeed(); }
+setLang(LANG);   // applies static translations + triggers first refresh
+setInterval(refreshAll, 5000);
+</script>
+</body>
+</html>

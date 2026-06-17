@@ -1,0 +1,5 @@
+node_modules/
+.env
+data/leads.csv
+*.log
+.DS_Store

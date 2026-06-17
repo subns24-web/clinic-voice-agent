@@ -1,0 +1,45 @@
+# Render Blueprint — deploys the voice agent + dashboard as one always-on web
+# service with WebSocket support. In Render: New > Blueprint > pick this repo.
+#
+# After the first deploy, add your custom domain in the Render dashboard
+# (Settings > Custom Domains > ai.callingagent.sntrinetra.com), then update
+# the GoDaddy DNS record as Render instructs (a CNAME to your-app.onrender.com).
+services:
+  - type: web
+    name: clinic-voice-agent
+    runtime: docker
+    plan: starter            # free tier works, but spins down when idle; "starter" stays warm
+    healthCheckPath: /api/status
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # PUBLIC_BASE_URL must be your final https URL (custom domain or *.onrender.com).
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: CHANNEL
+        value: clinic
+      # --- secrets: set these in the Render dashboard, never commit them ---
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE_NUMBER
+        sync: false
+      - key: SARVAM_API_KEY
+        sync: false
+      - key: SARVAM_TTS_SPEAKER
+        value: anushka
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4.1-mini
+      - key: BRAIN_PROVIDER
+        value: openai
+      - key: CLINIC_ESCALATION_NUMBER
+        sync: false
+      # --- dashboard admin login ---
+      - key: ADMIN_USER
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
