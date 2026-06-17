@@ -86,7 +86,10 @@ function streamTwiml(direction, channelId) {
 }
 
 app.get("/", (_req, res) => res.redirect("/dashboard"));
-app.get("/dashboard", (_req, res) => res.sendFile(path.join(__dirname, "public", "dashboard.html")));
+app.get("/dashboard", (_req, res) => {
+  res.set("Cache-Control", "no-store, must-revalidate");
+  res.sendFile(path.join(__dirname, "public", "dashboard.html"));
+});
 
 // ---- Dashboard API ----
 app.get("/api/status", (_req, res) => {
@@ -106,6 +109,7 @@ app.get("/api/status", (_req, res) => {
     },
     uptimeSec: Math.floor((Date.now() - STARTED_AT) / 1000),
     activeCalls: [...activeCalls.values()],
+    usdInr: USD_INR,
   });
 });
 
@@ -140,6 +144,105 @@ app.get("/api/calls", async (_req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ---- Billing / usage across the stack ----
+// Twilio numbers are LIVE (balance + this-month spend). OpenAI & Sarvam expose no
+// public balance API, so their spend is ESTIMATED from this month's call minutes
+// using rates you can override via env. Hosting rows are plan facts. Everything
+// estimated is clearly flagged so you never mistake a guess for a real balance.
+const BILL = {
+  openaiCreditUsd: process.env.OPENAI_CREDIT_USD ? +process.env.OPENAI_CREDIT_USD : 5,
+  sarvamCreditUsd: process.env.SARVAM_CREDIT_USD ? +process.env.SARVAM_CREDIT_USD : null,
+  openaiInPer1k: +(process.env.RATE_OPENAI_IN || 0.0004),   // gpt-4.1-mini $0.40 / 1M in
+  openaiOutPer1k: +(process.env.RATE_OPENAI_OUT || 0.0016), // gpt-4.1-mini $1.60 / 1M out
+  tokensPerMin: +(process.env.RATE_TOKENS_PER_MIN || 1800), // ~tokens of chat per call minute
+  sarvamPerMin: +(process.env.RATE_SARVAM_PER_MIN || 0.018),// est. STT+TTS $/min
+  renderUsd: +(process.env.RENDER_PLAN_USD || 7),           // starter plan, always-on
+};
+// Providers bill in USD; the dashboard shows ₹. Override the FX rate via env.
+const USD_INR = +(process.env.USD_INR || 83.5);
+
+function startOfMonth() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); }
+
+app.get("/api/billing", async (_req, res) => {
+  const out = { currency: "USD", generatedAt: new Date().toISOString(), tools: [] };
+
+  // --- Twilio (LIVE) ---
+  let twBalance = null, twUsed = null, twErr = null;
+  try {
+    const bal = await tw.balance.fetch();
+    twBalance = +bal.balance;
+    out.currency = bal.currency || "USD";
+  } catch (e) { twErr = e.message; }
+  try {
+    const recs = await tw.usage.records.thisMonth.list({ limit: 80 });
+    const tot = recs.find((r) => r.category === "totalprice");
+    twUsed = tot ? +tot.price : recs.reduce((s, r) => s + (+r.price || 0), 0);
+  } catch (e) { if (!twErr) twErr = e.message; }
+
+  // --- This month's call minutes (drives OpenAI + Sarvam estimates) ---
+  let minutes = 0, callCount = 0;
+  try {
+    const since = startOfMonth();
+    const calls = await tw.calls.list({ startTimeAfter: since, limit: 200 });
+    for (const c of calls) { minutes += (+c.duration || 0) / 60; callCount++; }
+  } catch { /* estimate stays 0 */ }
+  minutes = Math.round(minutes * 10) / 10;
+
+  const openaiPerMin = (BILL.tokensPerMin / 1000) * (0.6 * BILL.openaiInPer1k + 0.4 * BILL.openaiOutPer1k);
+  const openaiUsed = +(minutes * openaiPerMin).toFixed(3);
+  const sarvamUsed = +(minutes * BILL.sarvamPerMin).toFixed(3);
+
+  out.summary = { callsThisMonth: callCount, minutesThisMonth: minutes };
+
+  out.tools.push({
+    key: "twilio", name: "Twilio", role: "telephony", live: !twErr,
+    status: twErr ? "error" : "live", error: twErr,
+    balanceUsd: twBalance, usedThisMonthUsd: twUsed,
+    note: twErr ? null : "prepaid balance",
+    link: "https://console.twilio.com/us1/billing/manage-billing/billing-overview",
+    tips: ["tipTwilio1", "tipTwilio2"],
+  });
+  out.tools.push({
+    key: "openai", name: "OpenAI", role: "brain (gpt-4.1-mini)", live: false,
+    status: "estimate", balanceUsd: BILL.openaiCreditUsd,
+    usedThisMonthUsd: openaiUsed,
+    remainingUsd: BILL.openaiCreditUsd != null ? +(BILL.openaiCreditUsd - openaiUsed).toFixed(2) : null,
+    note: "est. from " + minutes + " min this month",
+    link: "https://platform.openai.com/usage",
+    tips: ["tipOpenai1", "tipOpenai2", "tipOpenai3"],
+  });
+  out.tools.push({
+    key: "sarvam", name: "Sarvam AI", role: "speech (STT + TTS)", live: false,
+    status: "estimate", balanceUsd: BILL.sarvamCreditUsd,
+    usedThisMonthUsd: sarvamUsed,
+    remainingUsd: BILL.sarvamCreditUsd != null ? +(BILL.sarvamCreditUsd - sarvamUsed).toFixed(2) : null,
+    note: "est. from " + minutes + " min this month",
+    link: "https://dashboard.sarvam.ai",
+    tips: ["tipSarvam1", "tipSarvam2"],
+  });
+  out.tools.push({
+    key: "hosting", name: PUBLIC_BASE_URL.includes("ngrok") ? "ngrok (tunnel)" : "Render", role: "always-on host", live: false,
+    status: "plan", monthlyUsd: PUBLIC_BASE_URL.includes("ngrok") ? 0 : BILL.renderUsd,
+    note: PUBLIC_BASE_URL.includes("ngrok") ? "free tunnel — laptop must stay on" : "starter plan, always-on",
+    link: "https://render.com/pricing",
+    tips: ["tipHost1", "tipHost2"],
+  });
+
+  out.totalEstThisMonthUsd = +((twUsed || 0) + openaiUsed + sarvamUsed).toFixed(2);
+
+  // Convert every monetary field from USD -> INR; the dashboard renders ₹.
+  const toInr = (v) => (v == null ? null : Math.round(v * USD_INR * 100) / 100);
+  for (const tl of out.tools) {
+    for (const k of ["balanceUsd", "usedThisMonthUsd", "remainingUsd", "monthlyUsd"]) {
+      if (tl[k] != null) tl[k] = toInr(tl[k]);
+    }
+  }
+  out.totalEstThisMonthUsd = toInr(out.totalEstThisMonthUsd);
+  out.currency = "INR";
+  out.usdInr = USD_INR;
+  res.json(out);
 });
 
 // Inbound: Twilio hits this when someone calls a business number.

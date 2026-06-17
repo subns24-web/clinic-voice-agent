@@ -77,6 +77,21 @@
   .langtog { display:flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
   .langtog button { border:none; border-radius:0; background:var(--card2); padding:6px 12px; font-size:12.5px; color:var(--mut); }
   .langtog button.on { background:var(--accent); color:#fff; font-weight:600; }
+  .tabs { display:flex; gap:2px; padding:0 24px; border-bottom:1px solid var(--line); background:var(--bg); }
+  .tabs button { border:none; border-radius:0; background:none; color:var(--mut); padding:13px 16px; border-bottom:2px solid transparent; font-weight:600; }
+  .tabs button:hover { color:var(--txt); }
+  .tabs button.on { color:var(--txt); border-bottom-color:var(--accent); }
+  .tab { display:none; } .tab.on { display:block; }
+  .bill-tot { font-size:26px; font-weight:700; }
+  .tip { color:var(--mut); font-size:12.5px; margin:4px 0; padding-left:20px; position:relative; }
+  .tip:before { content:"💡"; position:absolute; left:0; }
+  .bar { height:7px; background:var(--pill); border-radius:6px; overflow:hidden; margin:8px 0 2px; }
+  .bar > i { display:block; height:100%; background:var(--green); }
+  .st { font-size:10px; padding:2px 8px; border-radius:20px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  .st.live { background:rgba(46,204,113,.16); color:#5fe39b; }
+  .st.estimate { background:rgba(241,178,74,.16); color:#f1c97a; }
+  .st.plan { background:rgba(160,120,255,.16); color:#c0a8ff; }
+  .st.error { background:rgba(255,95,87,.16); color:#ff8a84; }
 </style>
 </head>
 <body>
@@ -94,7 +109,13 @@
   </div>
 </header>
 
+<nav class="tabs">
+  <button id="tabbtn-overview" class="on" onclick="switchTab('overview')" data-i18n="tabOverview">Overview</button>
+  <button id="tabbtn-billing" onclick="switchTab('billing')" data-i18n="tabBilling">Billing &amp; usage</button>
+</nav>
+
 <div class="wrap">
+<div id="tab-overview" class="tab on">
   <!-- Status cards -->
   <div class="grid cards">
     <div class="card">
@@ -161,7 +182,36 @@
       <tbody id="callsBody"><tr><td colspan="7" class="empty" data-i18n="noCalls">No calls yet.</td></tr></tbody>
     </table>
   </div>
-</div>
+</div><!-- /tab-overview -->
+
+<!-- ============ BILLING TAB ============ -->
+<div id="tab-billing" class="tab">
+  <div class="grid cards">
+    <div class="card">
+      <h3 data-i18n="estSpend">Est. spend this month</h3>
+      <div class="bill-tot" id="billTotal">—</div>
+      <div class="mut" id="billCalls">—</div>
+    </div>
+    <div class="card">
+      <h3 data-i18n="twilioBal">Twilio balance (live)</h3>
+      <div class="bill-tot" id="billTwBal">—</div>
+      <div class="mut" data-i18n="prepaid">prepaid · updates live</div>
+    </div>
+    <div class="card" style="grid-column:1/-1; min-width:0;">
+      <h3 data-i18n="saveMoney">How to spend less</h3>
+      <div id="billTopTips"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2><span data-i18n="perTool">Per-tool usage</span> <span class="badge" id="billUpdated"></span></h2>
+    <div id="billCards" class="grid cards"><div class="empty" data-i18n="loadingBill">Loading usage…</div></div>
+  </div>
+
+  <div class="mut" style="margin-top:14px; font-size:12px" data-i18n="billNote">
+    Twilio numbers are live. OpenAI &amp; Sarvam don't expose a public balance API, so their spend is estimated from this month's call minutes — adjust the rates via env (RATE_*).
+  </div>
+</div><!-- /tab-billing -->
 
 <div class="toast" id="toast"></div>
 
@@ -187,7 +237,24 @@ const I18N = {
     callFailed:(e)=>"Call failed: "+e, noNumber:"no number",
     evStart:(d,c)=>"call started ("+d+(c?" · "+c:"")+")", evStop:"call ended", evDial:(t,c)=>"dialing "+t+(c?" · "+c:""),
     evBooked:(n,s)=>"✅ booked "+n+" — "+s, evLead:(n,p)=>"📋 lead "+n+" "+p, noActivityFeed:"No activity yet. Place a call to see the live transcript here.",
-    cantLoadCalls:(e)=>"Could not load Twilio calls ("+e+")"
+    cantLoadCalls:(e)=>"Could not load Twilio calls ("+e+")",
+    tabOverview:"Overview", tabBilling:"Billing & usage",
+    estSpend:"Est. spend this month", twilioBal:"Twilio balance (live)", prepaid:"prepaid · updates live",
+    saveMoney:"How to spend less", perTool:"Per-tool usage", loadingBill:"Loading usage…",
+    billCalls:(n,m)=>n+" calls · "+m+" min this month",
+    balance:"Balance", remaining:"Remaining", monthly:"Monthly", usedMonth:"Used this month", free:"Free", openBilling:"Open billing",
+    st_live:"Live", st_estimate:"Estimate", st_plan:"Plan", st_error:"Error",
+    cantLoadBilling:(e)=>"Could not load billing ("+e+")",
+    billNote:"Twilio numbers are live. OpenAI & Sarvam don't expose a public balance API, so their spend is estimated from this month's call minutes — adjust the rates via env (RATE_*).",
+    tipTwilio1:"Use a local +91 Twilio number — India calls cost far less than calling from a US number.",
+    tipTwilio2:"Keep calls tight; Twilio bills per minute, rounded up.",
+    tipOpenai1:"gpt-4.1-mini is already ~20× cheaper than gpt-4o — keep it as the brain.",
+    tipOpenai2:"Cap max_tokens and trim chat history so each reply sends fewer tokens.",
+    tipOpenai3:"Reuse the same system prompt to benefit from prompt caching (cheaper input).",
+    tipSarvam1:"Shorter agent replies = fewer TTS characters = lower speech cost.",
+    tipSarvam2:"Bulbul v2 is the cheapest good Telugu voice — don't re-synthesize repeated lines.",
+    tipHost1:"Move off ngrok to Render starter ($7/mo) so your laptop need not stay on.",
+    tipHost2:"One Render service hosts the voice bridge + dashboard — no extra Vercel cost."
   },
   te: {
     title:"📞 క్లినిక్ వాయిస్ ఏజెంట్", refresh:"ప్రతి 5 సె. రిఫ్రెష్", refreshNow:"ఇప్పుడే రిఫ్రెష్",
@@ -206,7 +273,24 @@ const I18N = {
     callFailed:(e)=>"కాల్ విఫలమైంది: "+e, noNumber:"నంబర్ లేదు",
     evStart:(d,c)=>"కాల్ ప్రారంభమైంది ("+d+(c?" · "+c:"")+")", evStop:"కాల్ ముగిసింది", evDial:(t,c)=>t+" కు డయల్ చేస్తోంది"+(c?" · "+c:""),
     evBooked:(n,s)=>"✅ బుక్ చేయబడింది "+n+" — "+s, evLead:(n,p)=>"📋 లీడ్ "+n+" "+p, noActivityFeed:"ఇంకా కార్యకలాపం లేదు. ప్రత్యక్ష ట్రాన్స్‌క్రిప్ట్ చూడటానికి కాల్ చేయండి.",
-    cantLoadCalls:(e)=>"ట్విలియో కాల్స్ లోడ్ చేయలేకపోయింది ("+e+")"
+    cantLoadCalls:(e)=>"ట్విలియో కాల్స్ లోడ్ చేయలేకపోయింది ("+e+")",
+    tabOverview:"అవలోకనం", tabBilling:"బిల్లింగ్ & వినియోగం",
+    estSpend:"ఈ నెల అంచనా ఖర్చు", twilioBal:"ట్విలియో బ్యాలెన్స్ (లైవ్)", prepaid:"ప్రీపెయిడ్ · లైవ్ అప్‌డేట్",
+    saveMoney:"ఖర్చు ఎలా తగ్గించాలి", perTool:"ఒక్కో టూల్ వినియోగం", loadingBill:"వినియోగం లోడ్ అవుతోంది…",
+    billCalls:(n,m)=>"ఈ నెల "+n+" కాల్స్ · "+m+" నిమి",
+    balance:"బ్యాలెన్స్", remaining:"మిగిలింది", monthly:"నెలవారీ", usedMonth:"ఈ నెల వాడింది", free:"ఉచితం", openBilling:"బిల్లింగ్ తెరవండి",
+    st_live:"లైవ్", st_estimate:"అంచనా", st_plan:"ప్లాన్", st_error:"లోపం",
+    cantLoadBilling:(e)=>"బిల్లింగ్ లోడ్ చేయలేకపోయింది ("+e+")",
+    billNote:"ట్విలియో నంబర్లు లైవ్. OpenAI & Sarvam కు పబ్లిక్ బ్యాలెన్స్ API లేదు, కాబట్టి వాటి ఖర్చు ఈ నెల కాల్ నిమిషాల ఆధారంగా అంచనా — రేట్లను env (RATE_*) లో మార్చవచ్చు.",
+    tipTwilio1:"స్థానిక +91 ట్విలియో నంబర్ వాడండి — US నంబర్ కంటే భారత్ కాల్స్ చాలా తక్కువ ఖర్చు.",
+    tipTwilio2:"కాల్స్ సంక్షిప్తంగా ఉంచండి; ట్విలియో నిమిషానికి (పైకి రౌండ్) బిల్ చేస్తుంది.",
+    tipOpenai1:"gpt-4.1-mini ఇప్పటికే gpt-4o కంటే ~20 రెట్లు చౌక — బ్రెయిన్‌గా దీన్నే ఉంచండి.",
+    tipOpenai2:"max_tokens పరిమితం చేసి చాట్ హిస్టరీ తగ్గించండి — ప్రతి సమాధానం తక్కువ టోకెన్లు పంపుతుంది.",
+    tipOpenai3:"అదే సిస్టమ్ ప్రాంప్ట్ వాడితే ప్రాంప్ట్ కాషింగ్ వల్ల ఇన్‌పుట్ ఖర్చు తగ్గుతుంది.",
+    tipSarvam1:"ఏజెంట్ సమాధానాలు చిన్నవిగా = తక్కువ TTS అక్షరాలు = తక్కువ స్పీచ్ ఖర్చు.",
+    tipSarvam2:"బుల్బుల్ v2 చౌకైన మంచి తెలుగు వాయిస్ — పునరావృత లైన్లను మళ్లీ సింథసైజ్ చేయవద్దు.",
+    tipHost1:"ngrok నుండి Render స్టార్టర్ ($7/నెల) కు మారండి — ల్యాప్‌టాప్ ఆన్‌లో ఉంచాల్సిన అవసరం లేదు.",
+    tipHost2:"ఒకే Render సర్వీస్ వాయిస్ బ్రిడ్జ్ + డాష్‌బోర్డ్ హోస్ట్ చేస్తుంది — అదనపు Vercel ఖర్చు లేదు."
   }
 };
 let LANG = localStorage.getItem("cva_lang") || "en";
@@ -230,6 +314,7 @@ async function getJSON(u){ const r=await fetch(u); if(!r.ok) throw new Error((aw
 async function loadStatus(){
   try {
     const s = await getJSON("/api/status");
+    if (s.usdInr) window.USD_INR = s.usdInr;
     $("clinicName").textContent = s.clinic?.name ? "· " + s.clinic.name : "";
     $("subline").textContent = "Telugu + English · brain: " + (s.providers?.brain||"openai") +
       (s.publicUrl ? " · " + s.publicUrl.replace(/^https?:\/\//,"") : "");
@@ -281,7 +366,7 @@ async function loadCalls(){
       <td><span class="pill ${c.direction&&c.direction.includes('out')?'outbound':'inbound'}">${esc(c.direction)}</span></td>
       <td class="mono">${esc(c.from)}</td><td class="mono">${esc(c.to)}</td>
       <td>${esc(c.status)}</td><td>${fmtDur(c.duration)}</td>
-      <td>${c.price?('$'+Math.abs(+c.price).toFixed(3)):'—'}</td></tr>`).join("");
+      <td>${c.price?money(Math.abs(+c.price)*(window.USD_INR||83.5)):'—'}</td></tr>`).join("");
   } catch(e){ $("callsBody").innerHTML='<tr><td colspan="7" class="empty">'+esc(t("cantLoadCalls", e.message))+'</td></tr>'; }
 }
 
@@ -324,7 +409,55 @@ async function placeCall(){
   finally { $("callBtn").disabled=false; }
 }
 
-function refreshAll(){ loadStatus(); loadLeads(); loadCalls(); loadFeed(); }
+// ---- Billing (all amounts in ₹) ----
+function money(v){ if(v==null||v==="") return "—";
+  const n=Number(v); const dec=(Math.abs(n)>0 && Math.abs(n)<100)?2:0;
+  return "₹"+n.toLocaleString("en-IN",{minimumFractionDigits:dec,maximumFractionDigits:2}); }
+
+function switchTab(name){
+  ["overview","billing"].forEach(n=>{
+    $("tab-"+n).classList.toggle("on", n===name);
+    $("tabbtn-"+n).classList.toggle("on", n===name);
+  });
+  if(name==="billing") loadBilling();
+}
+
+function toolCard(x){
+  const st=t("st_"+x.status)||x.status;
+  let usage="";
+  if(x.balanceUsd!=null && x.remainingUsd!=null){
+    const pct=Math.max(2, Math.min(100, 100*x.remainingUsd/x.balanceUsd));
+    usage='<div class="row"><span class="mut">'+t("remaining")+'</span> <b>'+money(x.remainingUsd)+'</b> <span class="mut">/ '+money(x.balanceUsd)+'</span></div><div class="bar"><i style="width:'+pct+'%"></i></div>';
+  } else if(x.balanceUsd!=null){
+    usage='<div class="row"><span class="mut">'+t("balance")+'</span> <b>'+money(x.balanceUsd)+'</b></div>';
+  } else if(x.monthlyUsd!=null){
+    usage='<div class="row"><span class="mut">'+t("monthly")+'</span> <b>'+(x.monthlyUsd?money(x.monthlyUsd):t("free"))+'</b></div>';
+  }
+  const used = x.usedThisMonthUsd!=null ? '<div class="row"><span class="mut">'+t("usedMonth")+'</span> <b>'+money(x.usedThisMonthUsd)+'</b></div>' : '';
+  const tips=(x.tips||[]).map(k=>'<div class="tip">'+esc(t(k))+'</div>').join("");
+  return '<div class="card"><div class="row" style="justify-content:space-between"><b>'+esc(x.name)+'</b><span class="st '+esc(x.status)+'">'+esc(st)+'</span></div>'+
+    '<div class="mut" style="font-size:12px;margin-bottom:8px">'+esc(x.role)+'</div>'+
+    usage+used+
+    (x.note?'<div class="mut" style="font-size:11.5px;margin-top:4px">'+esc(x.note)+'</div>':'')+
+    '<div style="margin-top:8px">'+tips+'</div>'+
+    '<div style="margin-top:8px"><a href="'+esc(x.link)+'" target="_blank" rel="noopener">'+t("openBilling")+' →</a></div></div>';
+}
+
+async function loadBilling(){
+  try{
+    const b=await getJSON("/api/billing");
+    $("billTotal").textContent=money(b.totalEstThisMonthUsd);
+    $("billCalls").textContent=t("billCalls", b.summary?.callsThisMonth||0, b.summary?.minutesThisMonth||0);
+    const tw=(b.tools||[]).find(x=>x.key==="twilio");
+    $("billTwBal").textContent=(tw&&tw.balanceUsd!=null)?money(tw.balanceUsd):"—";
+    $("billUpdated").textContent=fmtTime(b.generatedAt);
+    $("billTopTips").innerHTML=["tipOpenai2","tipSarvam1","tipHost1"].map(k=>'<div class="tip">'+esc(t(k))+'</div>').join("");
+    $("billCards").innerHTML=(b.tools||[]).map(toolCard).join("");
+  }catch(e){ $("billCards").innerHTML='<div class="empty">'+esc(t("cantLoadBilling", e.message))+'</div>'; }
+}
+
+function refreshAll(){ loadStatus(); loadLeads(); loadCalls(); loadFeed();
+  if($("tab-billing")&&$("tab-billing").classList.contains("on")) loadBilling(); }
 setLang(LANG);   // applies static translations + triggers first refresh
 setInterval(refreshAll, 5000);
 </script>
