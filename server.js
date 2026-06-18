@@ -11,7 +11,7 @@ import { channels, getChannel } from "./config/channels.js";
 import { TurnDetector, muLawBufferToPcm16, frameRms } from "./lib/audio.js";
 import { transcribe, synthesize } from "./lib/sarvam.js";
 import { Conversation } from "./lib/brain.js";
-import { saveLead, readLeads } from "./lib/leads.js";
+import { saveLead, readLeads, saveCallStat, readCallStatsByChannel } from "./lib/leads.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -200,6 +200,19 @@ app.get("/api/billing", async (_req, res) => {
   const sarvamUsed = +(minutes * BILL.sarvamPerMin).toFixed(3);
 
   out.summary = { callsThisMonth: callCount, minutesThisMonth: minutes };
+
+  // --- Per-channel breakdown (from local callstats.csv) ---
+  const costPerMin = openaiPerMin + BILL.sarvamPerMin; // AI cost per minute (excl. Twilio)
+  const chanStats = readCallStatsByChannel(startOfMonth());
+  out.perChannel = Object.values(channels).map((ch) => {
+    const s = chanStats[ch.id] || { calls: 0, minutes: 0 };
+    const mins = Math.round(s.minutes * 10) / 10;
+    const costUsd = mins * costPerMin;
+    const avgUsd = s.calls > 0 ? costUsd / s.calls : 0;
+    return { id: ch.id, name: ch.name, calls: s.calls, minutes: mins,
+      costInr: Math.round(costUsd * USD_INR * 100) / 100,
+      avgCostPerCallInr: Math.round(avgUsd * USD_INR * 100) / 100 };
+  });
 
   out.tools.push({
     key: "twilio", name: "Twilio", role: "telephony", live: !twErr,
@@ -444,6 +457,10 @@ wss.on("connection", (ws) => {
           patientName: l.patientName, phone: l.phone, reason: l.reason, slot: "" });
         logEvent("lead", session.callSid, { patientName: l.patientName, phone: l.phone });
       }
+      // Save per-channel cost stat for billing breakdown.
+      const ac = activeCalls.get(session.callSid);
+      const durationSec = ac?.startedAt ? (Date.now() - new Date(ac.startedAt).getTime()) / 1000 : 0;
+      saveCallStat({ callSid: session.callSid, channel: session.channel || ac?.channel || DEFAULT_CHANNEL, durationSec });
       logEvent("stop", session.callSid, {});
       activeCalls.delete(session.callSid);
     }

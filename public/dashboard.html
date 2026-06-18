@@ -205,6 +205,11 @@
     </div>
   </div>
 
+  <div class="section" id="bizCostSec" style="display:none">
+    <h2 data-i18n="perBusiness">Cost per Business</h2>
+    <div id="bizCostCards" class="grid cards"></div>
+  </div>
+
   <div class="section">
     <h2><span data-i18n="perTool">Per-tool usage</span> <span class="badge" id="billUpdated"></span></h2>
     <div id="billCards" class="grid cards"><div class="empty" data-i18n="loadingBill">Loading usage…</div></div>
@@ -256,7 +261,8 @@ const I18N = {
     tipSarvam1:"Shorter agent replies = fewer TTS characters = lower speech cost.",
     tipSarvam2:"Bulbul v2 is the cheapest good Telugu voice — don't re-synthesize repeated lines.",
     tipHost1:"Move off ngrok to Render starter ($7/mo) so your laptop need not stay on.",
-    tipHost2:"One Render service hosts the voice bridge + dashboard — no extra Vercel cost."
+    tipHost2:"One Render service hosts the voice bridge + dashboard — no extra Vercel cost.",
+    perBusiness:"Cost per Business (this month)", bizCalls:"Calls", bizMins:"Minutes", bizTotal:"AI cost (est.)", bizAvg:"Avg per call", bizNoData:"No calls recorded yet for this business."
   },
   te: {
     title:"📞 క్లినిక్ వాయిస్ ఏజెంట్", refresh:"ప్రతి 5 సె. రిఫ్రెష్", refreshNow:"ఇప్పుడే రిఫ్రెష్",
@@ -292,7 +298,8 @@ const I18N = {
     tipSarvam1:"ఏజెంట్ సమాధానాలు చిన్నవిగా = తక్కువ TTS అక్షరాలు = తక్కువ స్పీచ్ ఖర్చు.",
     tipSarvam2:"బుల్బుల్ v2 చౌకైన మంచి తెలుగు వాయిస్ — పునరావృత లైన్లను మళ్లీ సింథసైజ్ చేయవద్దు.",
     tipHost1:"ngrok నుండి Render స్టార్టర్ ($7/నెల) కు మారండి — ల్యాప్‌టాప్ ఆన్‌లో ఉంచాల్సిన అవసరం లేదు.",
-    tipHost2:"ఒకే Render సర్వీస్ వాయిస్ బ్రిడ్జ్ + డాష్‌బోర్డ్ హోస్ట్ చేస్తుంది — అదనపు Vercel ఖర్చు లేదు."
+    tipHost2:"ఒకే Render సర్వీస్ వాయిస్ బ్రిడ్జ్ + డాష్‌బోర్డ్ హోస్ట్ చేస్తుంది — అదనపు Vercel ఖర్చు లేదు.",
+    perBusiness:"వ్యాపారం వారీ ఖర్చు (ఈ నెల)", bizCalls:"కాల్స్", bizMins:"నిమిషాలు", bizTotal:"AI ఖర్చు (అంచనా)", bizAvg:"కాల్‌కు సగటు", bizNoData:"ఈ వ్యాపారానికి ఇంకా కాల్స్ లేవు."
   }
 };
 let LANG = localStorage.getItem("cva_lang") || "en";
@@ -458,6 +465,27 @@ async function loadBilling(){
     $("billUpdated").textContent=fmtTime(b.generatedAt);
     $("billTopTips").innerHTML=["tipOpenai2","tipSarvam1","tipHost1"].map(k=>'<div class="tip">'+esc(t(k))+'</div>').join("");
     $("billCards").innerHTML=(b.tools||[]).map(toolCard).join("");
+
+    // Per-business cost breakdown
+    if(b.perChannel && b.perChannel.length){
+      $("bizCostSec").style.display="";
+      $("bizCostCards").innerHTML=b.perChannel.map(ch=>{
+        const hasData=ch.calls>0;
+        const avg=hasData?money(ch.avgCostPerCallInr,2):"—";
+        const total=hasData?money(ch.costInr,2):"—";
+        return '<div class="card">'+
+          '<b style="font-size:15px">'+esc(ch.name)+'</b>'+
+          '<div class="mut" style="font-size:11.5px;margin:2px 0 8px">'+esc(ch.id)+'</div>'+
+          '<div class="row"><span class="mut">'+t("bizCalls")+'</span> <b>'+ch.calls+'</b></div>'+
+          '<div class="row"><span class="mut">'+t("bizMins")+'</span> <b>'+ch.minutes+' min</b></div>'+
+          '<div class="row"><span class="mut">'+t("bizTotal")+'</span> <b>'+total+'</b></div>'+
+          '<div class="row" style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.08)">'+
+            '<span class="mut">'+t("bizAvg")+'</span> <b style="font-size:17px;color:var(--accent,#7b8cde)">'+avg+'</b>'+
+          '</div>'+
+          (!hasData?'<div class="mut" style="font-size:11px;margin-top:6px">'+t("bizNoData")+'</div>':'')+
+          '</div>';
+      }).join("");
+    }
   }catch(e){ $("billCards").innerHTML='<div class="empty">'+esc(t("cantLoadBilling", e.message))+'</div>'; }
 }
 
